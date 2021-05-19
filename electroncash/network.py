@@ -2085,7 +2085,7 @@ class Network(util.DaemonThread):
         of the specified transaction. All other exceptions indicate no broadcast
         has successfully occurred.
         Does not support using a callback function."""
-        
+
         command = 'blockchain.transaction.broadcast'
         def invocation(c): return self.send([(command, [str(transaction)])], c)
 

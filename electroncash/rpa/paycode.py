@@ -265,7 +265,7 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
     # Now we need to sign the transaction after the outputs are known
     grind_string = paycode_field_scan_pubkey[2:prefix_chars + 2].upper()
     wallet.sign_transaction(tx, password)
-    
+
     # Setup wallet and keystore in preparation for signature grinding
     my_keystore = wallet.get_keystore()
 
@@ -303,9 +303,8 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
         grinding_message = paycode_hex + grind_nonce_string + grinding_version
         ndata = sha256(grinding_message)
         # Re-sign the transaction input.
-        tx._sign_txin( 0,0, sec, compressed,  use_cache=False, ndata=ndata)
-        
-  
+        tx._sign_txin(0, 0, sec, compressed, use_cache=False, ndata=ndata)
+
         input_zero = tx._inputs[0]
         my_serialized_input = tx.serialize_input(input_zero, tx.input_script(input_zero, False, tx._sign_schnorr))
         my_serialized_input_bytes = bytes.fromhex(my_serialized_input)
@@ -319,13 +318,13 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
     # Sort the inputs and outputs deterministically
     tx.BIP_LI01_sort()
 
- 
     # Re-seriliaze the transaction.
     tx.raw = tx.serialize()
     retval = tx.as_dict()["hex"]
-    
+
     # Return a raw transaction string
     return retval
+
 
 def extract_private_key_from_transaction(wallet, raw_tx, password=None):
     # Initialize return value.  Will return 0 if no private key can be found.
@@ -389,7 +388,7 @@ def extract_private_key_from_transaction(wallet, raw_tx, password=None):
 
         scan_private_key_wif_format = wallet.export_private_key_from_index(
             (False, 0), password)
-            
+
         scan_private_key_int_format = int.from_bytes(Base58.decode_check(scan_private_key_wif_format)[1:33],
                                                      byteorder="big")
         # Calculate shared secret

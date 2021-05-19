@@ -50,6 +50,7 @@ RX_AMT = re.compile(RE_AMT)
 frozen_style = "PayToEdit { border:none;}"
 normal_style = "PayToEdit { }"
 
+
 class PayToEdit(PrintError, ScanQRTextEdit):
 
     def __init__(self, win):
@@ -105,8 +106,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.setReadOnly(b)
         self.setStyleSheet(self._original_style_sheet + (frozen_style if b else normal_style))
         self.overlay_widget.setHidden(b)
-        
-    def setIsPaycode(self,val):
+
+    def setIsPaycode(self, val):
         self.is_paycode = val
 
     def setGreen(self):
@@ -133,7 +134,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         try:
             address = cls.parse_address(x)
             return bitcoin.TYPE_ADDRESS, address
-        except:
+        except BaseException:
             return bitcoin.TYPE_SCRIPT, ScriptOutput.from_string(x)
 
     @staticmethod
@@ -166,7 +167,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 return
             try:
                 self.payto_address = self.parse_output(data)
-            except:
+            except BaseException:
                 pass
             if self.payto_address:
                 self.win.lock_amount(False)
@@ -176,7 +177,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         for i, line in enumerate(lines):
             try:
                 _type, to_address, amount = self.parse_address_and_amount(line)
-            except:
+            except BaseException:
                 self.errors.append((i, line.strip()))
                 continue
 
@@ -194,7 +195,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             self.win.do_update_fee()
         else:
             self.amount_edit.setAmount(total if outputs else None)
-            self.win.lock_amount(total or len(lines)>1)
+            self.win.lock_amount(total or len(lines) > 1)
 
     def get_errors(self):
         return self.errors
@@ -247,8 +248,9 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         unexpectedly when selecting with mouse on a single-liner. '''
         vb = self.verticalScrollBar()
         docLineCount = self.document().lineCount()
-        if docLineCount == 1 and vb.maximum()-vb.minimum() == 1 and value != vb.minimum():
-            self.print_error(f"Workaround #1521: forcing scrollbar value back to {vb.minimum()} for single line payto_e.")
+        if docLineCount == 1 and vb.maximum() - vb.minimum() == 1 and value != vb.minimum():
+            self.print_error(
+                f"Workaround #1521: forcing scrollbar value back to {vb.minimum()} for single line payto_e.")
             vb.setValue(vb.minimum())
 
     def setCompleter(self, completer):
@@ -256,7 +258,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.c.setWidget(self)
         self.c.setCompletionMode(QCompleter.PopupCompletion)
         self.c.activated.connect(self.insertCompletion)
-
 
     def insertCompletion(self, completion):
         if self.c.widget() != self:
@@ -269,7 +270,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         tc.removeSelectedText()
         tc.insertText(completion + " ")
         self.setTextCursor(tc)
-
 
     def textUnderCursor(self):
         tc = self.textCursor()
@@ -320,7 +320,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             if result and result.startswith(networks.net.CASHADDR_PREFIX + ":"):
                 self.scan_f(result)
                 # TODO: update fee
-        super(PayToEdit,self).qr_input(_on_qr_success)
+        super(PayToEdit, self).qr_input(_on_qr_success)
 
     def _resolve_open_alias(self, *, force_if_has_focus=False):
         prev_vals = self.is_alias, self.validated  # used only if early return due to unchanged text below
@@ -387,6 +387,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         return True
 
     _rx_split = re.compile(r'(\s+)|(\s*,\s*)')  # split on ',' or on <whitespace>
+
     def _resolve_cash_accounts(self, skip_verif=False):
         ''' This should be called if not hasFocus(). Will run through the
         text in the payto and rewrite any verified cash accounts we find. '''
@@ -404,7 +405,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             while ca_string.endswith(','):
                 # string trailing ',', if any
                 ca_string = ca_string[:-1]
-                parts.insert(1, ',') # push stripped ',' into the 'parts' list
+                parts.insert(1, ',')  # push stripped ',' into the 'parts' list
             ca_tup = wallet.cashacct.parse_string(ca_string)
             if not ca_tup:
                 # not a cashaccount
@@ -417,14 +418,18 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 parts = [ca_string]  # strip down to JUST ca_string
             ca_info = wallet.cashacct.get_verified(ca_string)
             if ca_info:
-                resolved = wallet.cashacct.fmt_info(ca_info) + " " + ca_info.emoji + " <" + ca_info.address.to_ui_string() + ">"
-                lines[n] = line = resolved + " ".join(parts[1:])  # rewrite line, putting the resolved cash account + <address> at the beginning, amount at the end (if any)
+                resolved = wallet.cashacct.fmt_info(ca_info) + " " + ca_info.emoji + \
+                    " <" + ca_info.address.to_ui_string() + ">"
+                # rewrite line, putting the resolved cash account + <address> at the
+                # beginning, amount at the end (if any)
+                lines[n] = line = resolved + " ".join(parts[1:])
             else:
                 lines[n] = line = " ".join(parts)  # rewrite line, possibly stripping <> address here
                 # user specified cash account not found.. potentially kick off verify
                 need_verif.add(ca_tup[1])
         if (need_verif and not skip_verif
-                and need_verif != self.preivous_ca_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
+                # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
+                and need_verif != self.preivous_ca_could_not_verify
                 and wallet.network and wallet.network.is_connected()):
             # Note: verify_multiple_blocks here throws up a waiting dialog
             # and spawns a local event loop, so this call path may block for
@@ -441,7 +446,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 # got some verifications...
                 # call self again, to redo the payto edit with the verified pieces
                 self._resolve_cash_accounts(skip_verif=True)
-                return # above call takes care of rewriting self, so just return early
+                return  # above call takes care of rewriting self, so just return early
 
         self.preivous_ca_could_not_verify = need_verif
 
@@ -450,8 +455,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             # parsing elsewehre in this class on textChanged
             self.setText('\n'.join(lines))
 
-
-    def resolve(self, *, force_if_has_focus = False):
+    def resolve(self, *, force_if_has_focus=False):
         ''' This is called by the main window periodically from a timer. See
         main_window.py function `timer_actions`.
 

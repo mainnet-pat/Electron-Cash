@@ -64,7 +64,6 @@ from electroncash.contacts import Contact
 from electroncash import rpa
 
 
-
 try:
     from electroncash.plot import plot_history
 except BaseException:
@@ -495,7 +494,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # wrong wallet type.
         assert(self.wallet.wallet_type is 'rpa')
         password = self.wallet.rpa_pwd
-        self.wallet.import_rpa_tx(data,password)
+        self.wallet.import_rpa_tx(data, password)
 
     def on_network(self, event, *args):
         if event == 'wallet_updated':
@@ -608,10 +607,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.wallet.check_password(password)
                 except Exception as e:
                     self.show_error(str(e))
-                    # This is not the precise way to shut down the client, as we can see errors in the terminal.  Needs cleanup.
+                    # This is not the precise way to shut down the client, as we can see
+                    # errors in the terminal.  Needs cleanup.
                     self.gui_object.close_window(self)
-                    
-            
+
     def init_geometry(self):
         winpos = self.wallet.storage.get("winpos-qt")
         try:
@@ -927,7 +926,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tools_menu.addAction(
                 _("&Refresh RPA Transactions"),
                 self.wallet.fetch_rpa_mempool_txs_from_server)
-      
+
         raw_transaction_menu = tools_menu.addMenu(_("&Load Transaction"))
         raw_transaction_menu.addAction(
             _("From &File") + "...",
@@ -1298,7 +1297,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             server_height = self.network.get_server_height()
             rpa_height = self.wallet.storage.get('rpa_height')
 
-            # Establish rpa_height in the wallet as the current height because we don't need to sync anything prior to wallet creation.
+            # Establish rpa_height in the wallet as the current height because we
+            # don't need to sync anything prior to wallet creation.
             if rpa_height is None:
                 rpa_height = self.network.get_server_height()
                 self.wallet.storage.put('rpa_height', rpa_height)
@@ -1619,14 +1619,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
-        
-        
+
         def on_copy_uri():
             if self.receive_qr.data:
                 uri = str(self.receive_qr.data)
                 self.copy_to_clipboard(
                     uri, _('Receive request URI copied to clipboard'), uribut)
-        
+
         # The QR code for the receive tab.
         if self.wallet.wallet_type is not 'rpa':
             # Do not attempt to show a QR code for RPA paycode wallets.  There is no URI scheme yet for RPA.
@@ -1643,7 +1642,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             vbox2.setAlignment(but, Qt.AlignHCenter | Qt.AlignVCenter)
             hbox.addLayout(vbox2)
 
-        
         class ReceiveTab(QWidget):
             def showEvent(slf, e):
                 super().showEvent(e)
