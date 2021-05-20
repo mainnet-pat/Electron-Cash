@@ -2394,7 +2394,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             full_unit_amount = self.amount_e.get_amount() / 100000000
             raw_tx = rpa.paycode.generate_transaction_from_paycode(
-                self.wallet, self.config, full_unit_amount, paycode_string)
+                self.wallet, self.config, full_unit_amount, paycode_string,password=self.wallet.rpa_pwd)
             if raw_tx == 0:
                 self.show_error("Problem creating paycode tx.")
                 return
