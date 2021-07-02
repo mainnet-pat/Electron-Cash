@@ -2597,8 +2597,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # this is important so that cashacct: URIs get insta-resolved
             # (they only get resolved when payto_e loses focus)
             self.message_e.setFocus()
-
+            
+        # Ensure the checksum for the RPA address is correct.            
+        paycode_checksum_ok = True
         if scheme == "paycode" and not self.wallet.is_multisig():
+            try:
+                rpa.addr.decode("paycode:"+address)
+            except:
+                paycode_checksum_ok = False
+     
+        if scheme == "paycode" and paycode_checksum_ok and not self.wallet.is_multisig():
             self.payto_e.setIsPaycode(True)
             self.payto_e.setText("<paycode:" + address + ">")
             self.payto_e.setGreen()
