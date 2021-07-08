@@ -386,14 +386,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 pass
             self.show_error(str(exc_info[1]))
 
-    def import_rpa_mempool_tx(self, data):
-        # This should only be called by RPA wallet.  on_network function should be checking
-        # for the correct wallet, so we should never be in a situation with a
-        # wrong wallet type.
-        assert(self.wallet.wallet_type is 'rpa')
-        password = self.wallet.rpa_pwd
-        self.wallet.import_rpa_mempool_tx(data, password)
-
     def on_network(self, event, *args):
         #self.print_error("on_network:", event, *args)
         if event == 'wallet_updated':
