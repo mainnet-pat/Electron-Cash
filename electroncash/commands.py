@@ -563,11 +563,11 @@ class Commands:
         return rpa.paycode.generate_transaction_from_paycode(self.wallet, self.config, amount, paycode)
 
     @command('wp')
-    def rpa_extract_private_key_from_transaction(self, raw_tx, password=None):
+    def rpa_extract_private_keys_from_transaction(self, raw_tx, password=None):
         if self.wallet.wallet_type is not 'rpa':
             return {'error': 'This command may only be used on an RPA wallet.'}
 
-        return rpa.paycode.extract_private_key_from_transaction(self.wallet, raw_tx, password)
+        return rpa.paycode.extract_private_keys_from_transaction(self.wallet, raw_tx, password)
 
     @command('wp')
     def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,

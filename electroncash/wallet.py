@@ -3119,8 +3119,8 @@ class RpaWallet(ImportedWalletBase):
     def get_receiving_paycode(self):
         return rpa.generate_paycode(self, prefix_size="10")
         
-    def extract_private_key_from_transaction(self,rawtx,password):
-        return rpa.extract_private_key_from_transaction(self, rawtx, password)
+    def extract_private_keys_from_transaction(self,rawtx,password):
+        return rpa.extract_private_keys_from_transaction(self, rawtx, password)
 
     def fetch_rpa_mempool_txs_from_server(self):
         # This function is intended to be called when the clients wants

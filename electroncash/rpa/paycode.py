@@ -328,9 +328,9 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
     return retval
 
 
-def extract_private_key_from_transaction(wallet, raw_tx, password=None):
-    # Initialize return value.  Will return 0 if no private key can be found.
-    retval = 0
+def extract_private_keys_from_transaction(wallet, raw_tx, password=None):
+    # Initialize return value.  Will return empty list if no private key can be found.
+    retval = [] 
 
     # Deserialize the raw transaction
     unpacked_tx = Transaction.deserialize(Transaction(raw_tx))
@@ -424,9 +424,8 @@ def extract_private_key_from_transaction(wallet, raw_tx, password=None):
 
         # Check the address matches
         if destination in output_addresses:
-            process_inputs = False
-            retval = privkey_wif
-
+            retval.append(privkey_wif)
+            
         # Increment the input
         input_index += 1
 
