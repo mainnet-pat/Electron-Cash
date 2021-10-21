@@ -116,6 +116,7 @@ class BaseWizard(util.PrintError):
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('create_standard_seed', _('Create a new seed')),
+                ('create_standard_seed2', _('Generate a new seed from dice entropy')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use public or private keys')),
             ]
@@ -441,6 +442,16 @@ class BaseWizard(util.PrintError):
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)
 
+    def create_seed2(self,seed):
+        f = lambda x: self.request_passphrase(seed, x)
+        self.show_seed_dialog(run_next=f, seed_text=seed)
+        
+    def create_standard_seed2(self):
+        #self.opt_bip39 = True  # PROBABLY NOT NEEDED
+        #self.opt_ext = True    # PROBABLY NOT NEEDED 
+        test = False
+        self.dice_seed_dialog(run_next=self.create_seed2, test=test)
+         
     def request_passphrase(self, seed, opt_passphrase):
         if opt_passphrase:
             f = lambda x: self.confirm_seed(seed, x)

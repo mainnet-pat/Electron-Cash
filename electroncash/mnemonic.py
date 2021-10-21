@@ -340,6 +340,57 @@ class Mnemonic(MnemonicBase):
         passphrase = cls.normalize_text(passphrase or '', is_passphrase=True)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
+
+    def make_seed_custom(self, entropy_string) -> str:
+       
+        # First check to make sure it's dice only and has enough digits.
+        assert(len(entropy_string)>99)
+        entropy_string_has_only_valid_chars = True
+        for ch in entropy_string:
+            if not ch in "123456":
+                entropy_string_has_only_valid_chars = False
+        assert (entropy_string_has_only_valid_chars)
+        
+        pure_base6_string = ""
+        for ch in entropy_string:
+            ch2=int(ch)
+            ch2 -=1  # decrement to get to base6.  (dice 1-6 numbers become 0-5)
+            pure_base6_string = pure_base6_string + str(ch2)
+
+        entropy_integer = int(pure_base6_string,6)
+    
+        if self.lang not in ('en', 'es'):
+            raise NotImplementedError(f"Cannot make a seed for language '{self.lang}'. "
+                                      + "Only English and Spanish are supported as seed generation languages in this implementation")
+        def inner(entropy_int):
+            data = entropy_int.to_bytes((entropy_int.bit_length() + 7) // 8 , 'big')
+            data_hash = hashlib.sha256(data).hexdigest()
+            data_hash_32 = int(data_hash[0:32],16)
+            data = data_hash_32.to_bytes((data_hash_32.bit_length() + 7) // 8 , 'big')
+            
+            h = hashlib.sha256(data).hexdigest()
+            b = bin(int(binascii.hexlify(data), 16))[2:].zfill(len(data) * 8) + bin(int(h, 16))[2:].zfill(256)[:len(data) * 8 // 32]
+            result = []
+            for i in range(len(b) // 11):
+                idx = int(b[i * 11:(i + 1) * 11], 2)
+                result.append(self.wordlist[idx])
+            if self.lang == 'ja':  # Japanese must be joined by ideographic space.
+                result_phrase = u'\u3000'.join(result)
+            else:
+                result_phrase = ' '.join(result)
+            return result_phrase
+        iters = 0
+        while True:
+            entropy_integer = entropy_integer + iters
+            iters += 1
+            seed = inner(entropy_integer)
+            # avoid ambiguity between old-style seeds and BIP39, as well as avoid clashes with Electrum seeds
+            if autodetect_seed_type(seed, self.lang) == {SeedType.BIP39}:
+                self.print_error("make_seed iterations:", iters)
+                return seed
+
+
+
     def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) -> str:
         if self.lang not in ('en', 'es'):
             raise NotImplementedError(f"Cannot make a seed for language '{self.lang}'. "
@@ -348,6 +399,7 @@ class Mnemonic(MnemonicBase):
             raise ValueError('Strength should be one of the following [128, 160, 192, 224, 256], not %d.' % num_bits)
         def inner(num_bits):
             data = os.urandom(num_bits // 8)
+            print ("DEBUG mnemonic 351 data type is ",type(data), " data is ",data)
             h = hashlib.sha256(data).hexdigest()
             b = bin(int(binascii.hexlify(data), 16))[2:].zfill(len(data) * 8) + bin(int(h, 16))[2:].zfill(256)[:len(data) * 8 // 32]
             result = []
