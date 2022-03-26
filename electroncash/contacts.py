@@ -21,6 +21,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+import threading
 import dns
 from dns.exception import DNSException
 import json
@@ -31,6 +32,7 @@ from collections import namedtuple
 from typing import List, Dict, Generator
 from . import dnssec
 from . import cashacct
+from . import lns
 from . import util
 from . import networks
 from .storage import WalletStorage
@@ -39,7 +41,7 @@ from .address import Address
 class Contact(namedtuple("Contact", "name address type")):
     ''' Your basic contacts entry. '''
 
-contact_types = {'address', 'cashacct', 'openalias'}
+contact_types = {'address', 'cashacct', 'lns', 'openalias'}
 
 class Contacts(util.PrintError):
     '''Electron Cash Contacts subsystem 2.0. Lightweight class for saving/laoding
@@ -90,8 +92,10 @@ class Contacts(util.PrintError):
             if not all(isinstance(a, str) for a in (name, address, typ)):
                 continue # skip invalid-looking data
             address = __class__._cleanup_address(address, typ)
-            if typ in ('address', 'cashacct'):
-                if not Address.is_valid(address) or (typ == 'cashacct' and not cashacct.CashAcct.parse_string(name)):
+            if typ in ('address', 'cashacct', 'lns'):
+                if not Address.is_valid(address) \
+                    or (typ == 'cashacct' and not cashacct.CashAcct.parse_string(name)) \
+                    or (typ == 'lns' and not lns.LNS.parse_string(name)):
                     continue # skip if if does not appear to be valid for these types
             out.append( Contact(name, address, typ) )
         return out
@@ -139,7 +143,7 @@ class Contacts(util.PrintError):
     @staticmethod
     def _cleanup_address(address : str, _type : str) -> str:
         rm_prefix = (networks.net.CASHADDR_PREFIX + ":").lower()
-        if _type in ('address', 'cashacct') and address.lower().startswith(rm_prefix):
+        if _type in ('address', 'cashacct', 'lns') and address.lower().startswith(rm_prefix):
             address = address[len(rm_prefix):]  # chop off bitcoincash: prefix
         return address
 
@@ -382,3 +386,25 @@ class Contacts(util.PrintError):
             if type is not None and c.type != type:
                 continue
             yield c
+
+    def update_lns_contacts(self, window) -> int:
+        ''' Resolves the new addresses of lns contacts and updates them '''
+
+        lns_contacts = [contact for contact in self.get_all() if contact.type == 'lns']
+
+        def thread_func():
+            updated = 0
+            infos = window.wallet.lns.resolve_verify([contact.name for contact in lns_contacts])
+            if not infos:
+                return
+            for contact in lns_contacts:
+                info = [info for info in infos if contact.name == info.name and Address.from_string(contact.address) != info.address]
+                if info:
+                    if self.replace(contact, Contact(info[0].name, info[0].address.to_cashaddr(), 'lns')):
+                        updated += 1
+            if updated:
+                window.contact_list.do_update_signal.emit()
+
+        t = threading.Thread(name=f"update_lns_contacts",
+                            target=thread_func, daemon=True)
+        t.start()
