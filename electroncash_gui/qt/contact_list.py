@@ -399,12 +399,12 @@ class ContactList(PrintError, MyTreeWidget):
 
     def _make_wallet_lns_pseudo_contacts(self, exclude_contacts = []) -> List[Contact]:
         ''' Returns a list of 'fake' contacts that come from the wallet's
-        own registered LNS Names.  These contacts do not exist in the
+        own registered LNS Names. These contacts do not exist in the
         wallet.contacts object but are created on-the-fly from the
         wallet.lns list of LNS Names.
 
         The creation of this list is relatively cheap and scales as the lookups
-        are O(logN) in the cashaccts caches.
+        are O(logN) in the LNS caches.
 
         This is a convenience so that the Contacts tab shows "my" LNS Names
         after registration as well as external LNS Names. Note that the

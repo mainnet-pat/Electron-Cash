@@ -88,8 +88,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self._original_style_sheet = self.styleSheet() or ''
 
         self.previous_payto = ''
-        self.preivous_ca_could_not_verify = set()
-        self.preivous_lns_could_not_verify = set()
+        self.previous_ca_could_not_verify = set()
+        self.previous_lns_could_not_verify = set()
 
         if sys.platform in ('darwin',):
             # See issue #1411 -- on *some* macOS systems, clearing the
@@ -424,7 +424,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 # user specified cash account not found.. potentially kick off verify
                 need_verif.add(ca_tup[1])
         if (need_verif and not skip_verif
-                and need_verif != self.preivous_ca_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
+                and need_verif != self.previous_ca_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
                 and wallet.network and wallet.network.is_connected()):
             # Note: verify_multiple_blocks here throws up a waiting dialog
             # and spawns a local event loop, so this call path may block for
@@ -443,7 +443,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 self._resolve_cash_accounts(skip_verif=True)
                 return # above call takes care of rewriting self, so just return early
 
-        self.preivous_ca_could_not_verify = need_verif
+        self.previous_ca_could_not_verify = need_verif
 
         if lines_orig != lines:
             # set text only if we changed something since setText kicks off more
@@ -490,7 +490,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 # user specified cash account not found.. potentially kick off verify
                 need_verif.add(lns_tup[0])
         if (need_verif and not skip_verif
-                and need_verif != self.preivous_lns_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
+                and need_verif != self.previous_lns_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
                 and wallet.network and wallet.network.is_connected()):
             # Note: verify_multiple_names here throws up a waiting dialog
             # and spawns a local event loop, so this call path may block for
@@ -509,7 +509,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 self._resolve_lns_names(skip_verif=True)
                 return # above call takes care of rewriting self, so just return early
 
-        self.preivous_lns_could_not_verify = need_verif
+        self.previous_lns_could_not_verify = need_verif
 
         if lines_orig != lines:
             # set text only if we changed something since setText kicks off more

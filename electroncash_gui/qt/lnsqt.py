@@ -101,7 +101,7 @@ def verify_multiple_names(names : List[str], parent : MessageBoxMixin, wallet : 
                 if thing is None:
                     errs += 1
                 else:
-                    ctr += 1
+                    ctr += len(thing)
             except queue.Empty:
                 return
     code = VerifyingDialog(parent.top_level_window(),
@@ -115,19 +115,13 @@ def verify_multiple_names(names : List[str], parent : MessageBoxMixin, wallet : 
 def resolve_lns(parent : MessageBoxMixin, name : str, wallet : Abstract_Wallet = None) -> Tuple[lns.Info, str]:
     ''' Throws up a WaitingDialog while it resolves an LNS Name.
 
-    Goes out to network, verifies all tx's.
+    Goes out to network, verifies the name.
 
-    Returns: a tuple of: (Info, Minimally_Encoded_Formatted_AccountName)
+    Returns: a tuple of: (Info, lns_name)
 
     Argument `name` should be an LNS Name string of the form:
 
       satoshi.bch
-    #   name#number
-    #   name#number.;  etc
-
-    If the result would be ambigious, that is considered an error, so enough
-    of the account name#number.collision_hash needs to be specified to
-    unambiguously resolve the Cash Account.
 
     On failure throws up an error window and returns None.'''
     from .main_window import ElectrumWindow
@@ -136,8 +130,6 @@ def resolve_lns(parent : MessageBoxMixin, name : str, wallet : Abstract_Wallet =
     assert isinstance(wallet, Abstract_Wallet)
     class Bad(Exception): pass
     try:
-        if not wallet.network or not wallet.network.interface:
-            raise Bad(_("Cannot verify LNS Name as the network appears to be offline."))
         lns_tup = wallet.lns.parse_string(name)
         if not lns_tup:
             raise Bad(_("Invalid LNS Name specified: {name}").format(name=name))
@@ -145,8 +137,6 @@ def resolve_lns(parent : MessageBoxMixin, name : str, wallet : Abstract_Wallet =
         def resolve_verify():
             nonlocal results
             results = wallet.lns.resolve_verify(name)
-            # transform to tuple for backwards compat FIXME
-                # transform to tuple for backwards compat FIXME
             results = [(item,item.name) for item in results]
         code = VerifyingDialog(parent.top_level_window(),
                                _("Verifying LNS Name {name} please wait ...").format(name=name),
@@ -171,7 +161,7 @@ def resolve_lns(parent : MessageBoxMixin, name : str, wallet : Abstract_Wallet =
             raise Bad(_("Unsupported payment data type.") + "\n\n"
                       + _("The LNS Name {name} uses an account type that "
                           "is not supported by Electron Cash.").format(name=name))
-        return info, name
+        return info, info.name
     except Bad as e:
         parent.show_error(str(e))
     return None
@@ -433,10 +423,10 @@ class InfoGroupBox(PrintError, QGroupBox):
 
             if isinstance(parent, ElectrumWindow):
                 details_lbl.linkActivated.connect(details_link_activated)
-                copy_but.clicked.connect(lambda ignored=None, ca_string_em=lns_string_em, copy_but=copy_but:
-                                             parent.copy_to_clipboard(text=ca_string_em, tooltip=_('LNS Name copied to clipboard'), widget=copy_but) )
+                copy_but.clicked.connect(lambda ignored=None, name=lns_string_em, copy_but=copy_but:
+                                             parent.copy_to_clipboard(text=name, tooltip=_('LNS Name copied to clipboard'), widget=copy_but) )
                 copy_but.setToolTip('<span style="white-space:nowrap">'
-                                    + _("Copy <b>{cash_account_name}</b>").format(cash_account_name=lns_string_em)
+                                    + _("Copy <b>{text}</b>").format(text=lns_string_em)
                                     + '</span>')
             else:
                 details_lbl.setHidden(True)
@@ -685,7 +675,6 @@ def lookup_lns_dialog(
             def resolve_verify():
                 nonlocal results
                 results = wallet.lns.resolve_verify(name, exc=exc)
-                # transform to tuple for backwards compat FIXME
                 results = [(item,item.name) for item in results]
             code = VerifyingDialog(parent.top_level_window(),
                                    _("Verifying LNS Name {name} please wait ...").format(name=name),
@@ -756,11 +745,8 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
             # Error window was provided by resolve_lns, just return
             return False
         info, lns_string = tup
-    ca_string_em = lns_string
-    parsed = wallet.lns.parse_string(lns_string)
-    assert parsed
 
-    # . <-- at this point we have a verified cash account to display
+    # . <-- at this point we have a verified LNS name to display
 
     # Make sure it's not an unsupported type as the code at the end of this
     # file assumes info.address is an Address.
@@ -778,13 +764,13 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
     destroyed_print_error(d)
 
     grid = QGridLayout(d)
-    em_lbl = QLabel()
+    avatar_lbl = QLabel()
     def success_cb(data):
         try:
-            em_lbl.setText('')
+            avatar_lbl.setText('')
             pix = QPixmap()
             pix.loadFromData(data)
-            em_lbl.setPixmap(pix.scaled(75, 75, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            avatar_lbl.setPixmap(pix.scaled(75, 75, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         except:
             pass
 
@@ -798,8 +784,8 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
                          target=thread_func, daemon=True)
     t.start()
 
-    em_lbl.setToolTip(f'<span style="white-space:nowrap;">{ca_string_em}</span>')
-    grid.addWidget(em_lbl, 0, 0, 3, 1)
+    avatar_lbl.setToolTip(f'<span style="white-space:nowrap;">{info.name}</span>')
+    grid.addWidget(avatar_lbl, 0, 0, 3, 1)
     fsize = 26
     if len(info.name) > 20:
         fsize = 15
@@ -824,13 +810,6 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
             return
         if link.startswith('http'):
             webopen(link)
-        elif len(link) == 64:  # 64 character txid
-            tx = wallet.transactions.get(link)
-            if tx:
-                parent.show_transaction(tx, tx_desc=wallet.get_label(link))
-            else:
-                parent.do_process_from_txid(txid=link, tx_desc=wallet.get_label(link))
-            return
 
     # name
     name_lbl = QLabel(name_txt)
@@ -840,9 +819,9 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
     copy_name_but.setIcon(QIcon(":icons/copy.png"))
     button_make_naked(copy_name_but)
     copy_name_but.setToolTip('<span style="white-space:nowrap">'
-                                + _("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em)
+                                + _("Copy <b>{lns_name}</b>").format(lns_name=info.name)
                                 + '</span>')
-    copy_name_but.clicked.connect(lambda ignored=None, ca_string_em=ca_string_em, copy_but=copy_name_but:
+    copy_name_but.clicked.connect(lambda ignored=None, ca_string_em=info.name, copy_but=copy_name_but:
                                     parent.copy_to_clipboard(text=ca_string_em, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
     grid.addWidget(copy_name_but, 0, 2, 1, 1)
     # address label
@@ -895,42 +874,9 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
 
     grid.addWidget(tabs, 5, 0, 1, -1, Qt.AlignTop | Qt.AlignHCenter)
 
-    def_but = QPushButton()
-    mk_def_txt = _("Make default for address")
-    is_def_txt = _("Is default for address")
-    mk_def_tt = _("Make this LNS Name the default for this address")
-    is_def_tt = _("LNS Name has been made the default for this address")
-    def make_default():
-        wallet.lns.set_address_default(info)
-        # FIXME
-        parent.ca_address_default_changed_signal.emit(info)  # updates all concerned widgets, including self
-        tt = is_def_txt
-        QToolTip.showText(QCursor.pos(), tt, def_but)
-    def update_def_but(new_def):
-        if new_def and new_def.address != info.address:
-            # not related, abort
-            return
-        if new_def != info:
-            def_but.setDisabled(False)
-            def_but.setText(mk_def_txt)
-            def_but.setToolTip(mk_def_tt)
-        else:
-            def_but.setDisabled(True)
-            def_but.setText(is_def_txt)
-            def_but.setToolTip(is_def_tt)
-    def_but.clicked.connect(make_default)
-    infos = wallet.lns.get_lns_names([info.address])
-    def_now = infos and wallet.lns.get_address_default(infos)
-    if wallet.is_mine(info.address):
-        update_def_but(def_now)
-    else:
-        def_but.setHidden(True)  # not related to wallet, hide the button
-    del infos, def_now
-
     # Bottom buttons
-    buttons = Buttons(def_but, OkButton(d))
+    buttons = Buttons(OkButton(d))
     grid.addLayout(buttons, 6, 0, -1, -1)
-
 
     # make all labels allow select text & click links
     for c in d.children():
@@ -938,11 +884,8 @@ def lns_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow i
             c.setTextInteractionFlags(c.textInteractionFlags() | Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
 
     try:
-        parent.ca_address_default_changed_signal.connect(update_def_but)
         d.exec_()
-    finally:
-        # Unconditionally detach slot to help along Python GC
-        try: parent.ca_address_default_changed_signal.disconnect(update_def_but)
-        except TypeError: pass
+    except:
+        pass
 
     return True

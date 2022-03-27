@@ -391,10 +391,13 @@ class Contacts(util.PrintError):
         ''' Resolves the new addresses of lns contacts and updates them '''
 
         lns_contacts = [contact for contact in self.get_all() if contact.type == 'lns']
+        lns_names = [contact.name for contact in lns_contacts]
+        if not lns_names:
+            return
 
         def thread_func():
             updated = 0
-            infos = window.wallet.lns.resolve_verify([contact.name for contact in lns_contacts])
+            infos = window.wallet.lns.resolve_verify(lns_names)
             if not infos:
                 return
             for contact in lns_contacts:

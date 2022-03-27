@@ -69,7 +69,7 @@ class Info(namedtuple("Info", "name, address, registrationDate, expiryDate")):
         d['address'] = self.address.to_cashaddr()
         return d
 
-servers = [
+graph_servers = [
     "https://graph.bch.domains/subgraphs/name/graphprotocol/ens",
 ]
 
@@ -134,6 +134,11 @@ abi = [
   ]
 from web3 import Web3
 w3 = Web3(Web3.HTTPProvider("https://smartbch.fountainhead.cash/mainnet"))
+
+'''
+contract to look up multiple LNS addresses given a list of names and coin type
+see also https://github.com/bchdomains/reverse-records/blob/442862bf42bfaaf98c9511c2a0907ee612dbde13/contracts/ReverseRecords.sol#L73
+'''
 contract = w3.eth.contract(address="0x0efB8EE0F6d6ba04F26101683F062d7Ca6F58A40", abi=abi)
 
 def validate(name):
@@ -197,7 +202,6 @@ def lookup(server, name: Union[str, List[str]], timeout=timeout, exc=[], debug=d
                     ret.append(
                         Info(
                             reg['labelName'] + '.bch',
-                            # Address.from_cashaddr_string("qqevtgm50kulte70smem643qs07fjkj47y5jv2d2v7"),
                             get_address_from_output_script(reg['addr'])[1],
                             int(reg['registrationDate']),
                             int(reg['expiryDate'])
@@ -265,8 +269,8 @@ def lookup_asynch_all(success_cb, error_cb=None, name=None,
 
     Callbacks are called in another thread context so GUI-facing code should
     be aware of that fact (see nodes for lookup_asynch above).  '''
-    assert servers, "No servers hard-coded in lns.py. FIXME!"
-    my_servers = servers.copy()
+    assert graph_servers, "No servers hard-coded in lns.py. FIXME!"
+    my_servers = graph_servers.copy()
     random.shuffle(my_servers)
     N = len(my_servers)
     q = queue.Queue()
@@ -449,18 +453,6 @@ class LNS(util.PrintError):
         is needed.'''
         self._init_data()
 
-        # we do good just by verifying names in contact list upon launch
-        # we do not to persist all names fetched, but I leave the code here for now
-
-        # try:
-        #     dd = self.wallet.storage.get('lns_data', {})
-
-        #     for cashaddr, infos in dd.get('v_by_addr', {}).items():
-        #         self.v_by_addr[Address.from_cashaddr_string(cashaddr)] = set([Info.from_dict(dict) for dict in infos])
-        #     for name, infos in dd.get('v_by_name', {}).items():
-        #         self.v_by_name[name] = set([Info.from_dict(dict) for dict in infos])
-        # except:
-        #     pass
 
     def save(self, write=False):
         '''
@@ -469,21 +461,7 @@ class LNS(util.PrintError):
         self.v_by_addr = defaultdict(set) # dict of addr -> set of txid
         self.v_by_name = defaultdict(set) # dict of lowercased name -> set of txid
         '''
-        # ignore saving data for now
-        return
-
-        data =  {
-                    'v_by_addr' : {},
-                    'v_by_name' : {},
-                }
-        for idx, key in enumerate(self.v_by_addr):
-            data['v_by_addr'][key.to_cashaddr()] = [x.to_dict() for x in list(self.v_by_addr[key])]
-        for idx, key in enumerate(self.v_by_name):
-            data['v_by_name'][key] = [x.to_dict() for x in list(self.v_by_name[key])]
-
-        self.wallet.storage.put('lns_data', data)
-        if write:
-            self.wallet.storage.write()
+        pass
 
     def get_verified(self, lns_name) -> Info:
         ''' Returns the Info object for lns_name of the form: satoshi.bch
@@ -512,28 +490,13 @@ class LNS(util.PrintError):
 
         return ret
 
-    @staticmethod
-    def _do_verify_name_argchecks(network, exc=[], server='https://unknown'):
-        if not isinstance(server, str) or not server:
-            raise ArgumentError('bad server arg')
-        if not isinstance(exc, list):
-            raise ArgumentError('bad exc arg')
-        if not network:
-            exc.append(RuntimeError('no network'))
-            return False
-        return True
-
     def verify_name_asynch(self, name=None, success_cb=None, error_cb=None, timeout=timeout, debug=debug):
         ''' Tries all servers. Calls success_cb with the verified List[Info]
         as the single argument on first successful retrieval of the block.
         Calls error_cb with the exc as the only argument on failure. Guaranteed
         to call 1 of the 2 callbacks in either case.  Callbacks are optional
         and won't be called if specified as None. '''
-        exc = []
-        # network = self.network # capture network object in case it goes away while we are running
-        # if not self._do_verify_name_argchecks(network=network, exc=exc):
-        #     if error_cb: error_cb((exc and exc[-1]) or RuntimeError('error'))
-        #     return
+        exc=[]
         key = json.dumps(list(name))
         def on_error(exc):
             with self.lock:
@@ -570,38 +533,3 @@ class LNS(util.PrintError):
             else:
                 if debug: self.print_error(f"verify_name_asynch: #{key} already in-flight, will just enqueue callbacks")
 
-    ############################
-    # UI / Prefs / Convenience #
-    ############################
-
-    def get_address_default(self, infos : List[Info]) -> Info:
-        ''' Returns the preferred Info object for a particular address from
-        a given list. `infos' is a list of Info objects pertaining to a
-        particular address (they should all pertain to said address, but this
-        is not checked). '''
-        if infos:
-            last = infos[-1]
-            d = self.wallet.storage.get('lns_address_defaults')
-            if isinstance(d, dict) and isinstance(last.address, Address):  # sanity check, .address may not always be Address but may be UnknownAddress
-                tup = d.get(last.address.to_storage_string())
-                if isinstance(tup, (tuple, list)) and len(tup) == 3:
-                    name, number, chash = tup
-                    if isinstance(name, str) and isinstance(number, (int, float)) and isinstance(chash, str):
-                        # find the matching one in the list
-                        for info in infos:
-                            if (name.lower(), number, chash) == (info.name.lower(), info.number, info.collision_hash):
-                                return info
-            # just return the latest one if no default specified
-            return last
-
-    def set_address_default(self, info : Info):
-        ''' Set the default LNS Name for a particular address. Pass the Info
-        object pertaining to the LNS Name / Address in question. '''
-        if not isinstance(info.address, Address):
-            self.print_error("Warning: Info object does not have an Address", info)
-            return
-        d = self.wallet.storage.get('lns_address_defaults', {})
-        addr_str = info.address.to_storage_string()
-        new_value = [info.name, info.number, info.collision_hash]
-        d[addr_str] = new_value
-        self.wallet.storage.put('lns_address_defaults', d)
