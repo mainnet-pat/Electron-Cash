@@ -73,7 +73,13 @@ graph_servers = [
     "https://graph.bch.domains/subgraphs/name/graphprotocol/ens",
 ]
 
-debug = False  # network debug setting. Set to True when developing to see more verbose information about network operations.
+rpc_servers = [
+    "https://smartbch.fountainhead.cash/mainnet",
+    "https://smartbch.greyh.at",
+    "https://global.uat.cash",
+]
+
+debug = True  # network debug setting. Set to True when developing to see more verbose information about network operations.
 timeout = 25.0  # default timeout used in various network functions, in seconds.
 
 abi = [
@@ -141,6 +147,8 @@ see also https://github.com/bchdomains/reverse-records/blob/442862bf42bfaaf98c95
 '''
 contract = w3.eth.contract(address="0x0efB8EE0F6d6ba04F26101683F062d7Ca6F58A40", abi=abi)
 
+contracts = [Web3(Web3.HTTPProvider(rpc)).eth.contract(address="0x0efB8EE0F6d6ba04F26101683F062d7Ca6F58A40", abi=abi) for rpc in rpc_servers]
+
 def validate(name):
     if not name or not len(name):
         raise ArgumentError("Please pass a non-empty 'name' to lookup")
@@ -195,7 +203,18 @@ def lookup(server, name: Union[str, List[str]], timeout=timeout, exc=[], debug=d
             if (len(registrations)):
                 names = [d['labelName'] + '.bch' for d in registrations]
                 COIN_TYPE_BCH = 145
-                addrs = contract.functions.getAddrs(names, COIN_TYPE_BCH).call()
+                import asyncio
+                async def fetch(contract):
+                    return contract.functions.getAddrs(names, COIN_TYPE_BCH).call()
+                async def fetch_all(contracts):
+                    return await asyncio.gather(*[fetch(contract) for contract in contracts])
+
+                all_rpc_responses = asyncio.run(fetch_all(contracts))
+                for response in all_rpc_responses:
+                    if response != all_rpc_responses[0]:
+                        raise RuntimeError('LNS lookup: Not all RPC servers responded indentically')
+
+                addrs = all_rpc_responses[0]
                 filtered = [dict(reg, addr=addr)  for (reg, addr) in zip(registrations,addrs) if addr != b'']
 
                 for reg in filtered:
@@ -214,6 +233,7 @@ def lookup(server, name: Union[str, List[str]], timeout=timeout, exc=[], debug=d
 
         return ret
     except Exception as e:
+        print(e)
         if debug:
             util.print_error("lookup:", repr(e))
         if isinstance(exc, list):
