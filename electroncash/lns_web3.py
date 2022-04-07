@@ -27,9 +27,9 @@ Minimal web3 client implementation and LNS smart contract interaction
 '''
 import json
 import time
-from eth_abi import decode_abi, encode_abi
-from eth_utils import add_0x_prefix, encode_hex, function_abi_to_4byte_selector, to_bytes, to_hex
-from eth_utils.abi import collapse_if_tuple
+from electroncash.contrib.eth_abi import decode_abi, encode_abi
+from electroncash.contrib.eth_utils import add_0x_prefix, encode_hex, function_abi_to_4byte_selector, to_bytes, to_hex
+from electroncash.contrib.eth_utils.abi import collapse_if_tuple
 
 from hexbytes import HexBytes
 import requests
