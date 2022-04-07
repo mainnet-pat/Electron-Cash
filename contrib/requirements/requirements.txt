@@ -16,4 +16,6 @@ pathvalidate
 dnspython>=2.0
 
 # for LNS support
-web3
+eth_abi
+eth_utils
+hexbytes

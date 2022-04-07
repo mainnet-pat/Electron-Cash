@@ -27,20 +27,18 @@
 LNS related classes and functions.
 '''
 import json
-import requests
 import threading
 import queue
 import random
 import time
 from collections import defaultdict, namedtuple
 from typing import Tuple, List, Union
+from electroncash import lns_web3
 
 from electroncash.simple_config import get_config
 from . import util
 from .address import Address
 from .transaction import get_address_from_output_script
-from web3 import Web3
-from web3.contract import Contract
 
 # 'lns:' URI scheme. Not used yet. Used by Crescent Cash and Electron Cash and
 # other wallets in the future.
@@ -65,96 +63,7 @@ class Info(namedtuple("Info", "name, address, registrationDate, expiryDate")):
         return d
 
 debug = False  # network debug setting. Set to True when developing to see more verbose information about network operations.
-timeout = 25.0  # default timeout used in various network functions, in seconds.
-
-abi = [
-    {
-      "inputs": [
-        {
-          "internalType": "contract ENS",
-          "name": "_ens",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "constructor"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string[]",
-          "name": "names",
-          "type": "string[]"
-        },
-        {
-          "internalType": "uint256",
-          "name": "coinType",
-          "type": "uint256"
-        }
-      ],
-      "name": "getAddrs",
-      "outputs": [
-        {
-          "internalType": "bytes[]",
-          "name": "r",
-          "type": "bytes[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address[]",
-          "name": "addresses",
-          "type": "address[]"
-        }
-      ],
-      "name": "getNames",
-      "outputs": [
-        {
-          "internalType": "string[]",
-          "name": "r",
-          "type": "string[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    }
-  ]
-
-rpc_servers = [
-    "https://smartbch.fountainhead.cash/mainnet",
-    "https://smartbch.greyh.at",
-    "https://smartbch.electroncash.de",
-    "https://global.uat.cash",
-    "https://rpc.uatvo.com",
-    "https://moeing.tech:9545",
-    "http://localhost:8545"
-]
-
-graph_servers = [
-    "https://graph.bch.domains/subgraphs/name/graphprotocol/ens",
-    "https://graph.bch.domains/subgraphs/name/graphprotocol/ens-amber"
-]
-
-w3: Web3 = None
-contract: Contract = None
-
-def get_lns_contract() -> Contract:
-    global w3
-    global contract
-    rpc_server: str = get_config().get('lns_rpc_server', rpc_servers[0])
-    if not w3 or w3.provider.endpoint_uri != rpc_server:
-        w3 = Web3(Web3.HTTPProvider(rpc_server))
-        '''
-        contract to look up multiple LNS addresses given a list of names and coin type
-        see also https://github.com/bchdomains/reverse-records/blob/442862bf42bfaaf98c9511c2a0907ee612dbde13/contracts/ReverseRecords.sol#L73
-        '''
-        contract = w3.eth.contract(address="0x0efB8EE0F6d6ba04F26101683F062d7Ca6F58A40", abi=abi)
-    return contract
-
+timeout = 60.0  # default timeout used in various network functions, in seconds.
 
 def validate(name):
     if not name or not len(name):
@@ -181,38 +90,23 @@ def lookup(server, name: Union[str, List[str]], timeout=timeout, exc=[], debug=d
     '''
     validate(name)
 
-    contract = get_lns_contract()
-
-    url = f'{server}'
-    now = int(time.time())
-    batch = 425 # number which fits into gas limit
-    skip = 0
-    def get_json(skip):
-        if isinstance(name, list) or isinstance(name, set):
-            names = [str.split(n.strip(), '.bch')[0] for n in name]
-            return {"query": f'{{registrations(first:{batch},skip:{skip},where:{{labelName_in:{json.dumps(names)},expiryDate_gt:"{now}"}}){{labelName,registrationDate,expiryDate}}}}'}
-        else:
-            lookupName = str.split(name.strip(), '.bch')[0]
-            return {"query": f'{{registrations(first:{batch},skip:{skip},where:{{labelName_contains:"{lookupName}",expiryDate_gt:"{now}"}}){{labelName,registrationDate,expiryDate}}}}'}
+    # make a strict lookup if a lookup term ends on .bch
+    if isinstance(name, str) and name[-4:] == '.bch':
+        name = [name]
 
     try:
         ret = []
         moreToLoad = True
+        batch = 250 # number which fits into gas limit
+        skip = 0 # skip a number of results
         while moreToLoad:
-            r = requests.post(url, json=get_json(skip), allow_redirects=True, timeout=timeout) # will raise requests.exceptions.Timeout on timeout
-            r.raise_for_status()
-            d = r.json()
-            if not isinstance(d, dict) or not d.get('data'):
-                raise RuntimeError('Unexpected response', r.text)
-            res = d['data']
-            registrations = res['registrations']
-            if not isinstance(registrations, list):
-                raise RuntimeError('Bad response')
+            registrations = lns_web3.get_registrations(name, server, skip, batch, timeout)
 
             if (len(registrations)):
                 names = [d['labelName'] + '.bch' for d in registrations]
-                COIN_TYPE_BCH = 145
-                addrs = contract.functions.getAddrs(names, COIN_TYPE_BCH).call()
+
+                addrs = lns_web3.get_addrs(names, timeout)
+
                 filtered = [dict(reg, addr=addr)  for (reg, addr) in zip(registrations,addrs) if addr != b'']
 
                 for reg in filtered:
@@ -286,7 +180,7 @@ def lookup_asynch_all(success_cb, error_cb=None, name=None,
 
     Callbacks are called in another thread context so GUI-facing code should
     be aware of that fact (see nodes for lookup_asynch above).  '''
-    my_servers = [get_config().get('lns_graph_server', graph_servers[0])]
+    my_servers = [get_config().get('lns_graph_server', lns_web3.graph_servers[0])]
     random.shuffle(my_servers)
     N = len(my_servers)
     q = queue.Queue()

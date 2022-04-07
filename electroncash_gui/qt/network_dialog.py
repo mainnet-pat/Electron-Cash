@@ -36,7 +36,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
-from electroncash import lns, networks
+from electroncash import lns_web3, networks
 from electroncash.i18n import _, pgettext
 from electroncash.interface import Interface
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
@@ -1101,7 +1101,7 @@ class LNSSettingsWidget(QWidget):
         self.combo_rpc_server.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.combo_rpc_server.activated.connect(self.combo_rpc_server_activated)
         self.combo_rpc_server.lineEdit().textEdited.connect(self.user_changed_rpc_server)
-        self.rpc_servers = lns.rpc_servers
+        self.rpc_servers = lns_web3.rpc_servers
         self.combo_rpc_server.addItems([s for s in self.rpc_servers])
         hbox.addWidget(self.combo_rpc_server)
 
@@ -1114,7 +1114,7 @@ class LNSSettingsWidget(QWidget):
         self.combo_graph_server.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.combo_graph_server.activated.connect(self.combo_graph_server_activated)
         self.combo_graph_server.lineEdit().textEdited.connect(self.user_changed_graph_server)
-        self.graph_servers = lns.graph_servers
+        self.graph_servers = lns_web3.graph_servers
         self.combo_graph_server.addItems([s for s in self.graph_servers])
         hbox.addWidget(self.combo_graph_server)
 
