@@ -17,3 +17,7 @@ dnspython>=2.0
 
 # for LNS support
 hexbytes
+eth-typing
+eth-hash[pycryptodome]
+toolz
+parsimonious
